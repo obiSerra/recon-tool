@@ -7,13 +7,13 @@ import subprocess
 
 from wifi_utils_module import *
 
-class WifiScanner(threading.Thread):
+class WifiScanner(Thread):
     def __init__(self, dev_name="wlan1", gps=None):
-        threading.Thread.__init__(self)
+        Thread.__init__(self)
         self.ch = 1
         self.gps = gps
         self.dev_mon = ifconfig_cmd(dev_name)
-        self.networks = pandas.DataFrame(columns=["BSSID", "SSID", "dBm_Signal", "Channel", "Crypto", "Lat/Lng"])
+        self.networks = pandas.DataFrame(columns=["BSSID", "SSID", "dBm_Signal", "Channel", "Crypto", "Lat/Lng", "Time"])
         self.networks.set_index("BSSID", inplace=True)
         self.t = None
 
@@ -42,7 +42,7 @@ class WifiScanner(threading.Thread):
                 position = "{},{}".format(self.gps.current_val['lat'], self.gps.current_val['lng'])
             else:
                 position = '-'
-            self.networks.loc[bssid] = (ssid, dbm_signal, channel, crypto, position)
+            self.networks.loc[bssid] = (ssid, dbm_signal, channel, crypto, position, time.time())
 
     def run(self):
         while self.t and self.t.running:

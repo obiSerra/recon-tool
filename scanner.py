@@ -1,51 +1,89 @@
 #!/usr/bin/env python3
 import time
+import re
 import subprocess as sp
+import sys
 import pandas as pd
 from os import path
+from threading import Thread
+import optparse
 
 from gps_module import GpsModule
 from wifi_scanner_module import WifiScanner
 
 
-refresh_time = 5
-log_shell = True
-log_file = True
+class Scanner(Thread):
+   def __init__(self, csv_file=None, refresh_time=5, detached=False):
+      Thread.__init__(self)
+      self.wifiScanner = WifiScanner()
+      print("[+] Starting gps module")
+      self.gps = GpsModule()
+      self.csv_file=csv_file
+      self.refresh_time=refresh_time
+      self.detached=detached
+#      self.daemon=True
 
-csv_file = 'temp.csv'
+   def run(self):
+
+      try:
+         self.gps.start()
+         self.wifiScanner = WifiScanner(dev_name='wlan1', gps=self.gps)
+
+         self.wifiScanner.start_sniffing()
+
+         while True:
+            time.sleep(self.refresh_time)
+            networks = self.wifiScanner.networks
+            if self.detached == False:
+               sp.call('clear',shell=True)
+               print("\n\n\n")
+               print(networks)
+               
+            if self.csv_file:
+               if path.exists(self.csv_file):
+                  prev = pd.read_csv(self.csv_file)            
+                  # This config should be shared
+                  prev = pd.DataFrame(columns=["BSSID", "SSID", "dBm_Signal", "Channel", "Crypto", "Lat/Lng", "Time"])
+                  prev.set_index("BSSID", inplace=True)
+                  networks = pd.concat([prev,networks])
+                  
+               networks.to_csv(self.csv_file, index=True)                     
+                  
+      except (KeyboardInterrupt):
+         self.gps.stop()
+         self.gps.join()
+         self.wifiScanner.stop_sniffing()
+         raise
+      
+
 
 if __name__ == '__main__':
-   print("[+] Starting")
+   
+   parser = optparse.OptionParser('usage%prog -o <out file>')
+   parser.add_option('-o', '--output', dest='outfile', type='string', help='The output file')
+   parser.add_option('-r', dest='refresh_time', type='int', default=5, help='Time between refresh (default=5)')
+   parser.add_option('-d', '--detach', dest='detach', action='store_true', help='Detach the process')
+   parser.add_option('-k', '--kil', dest='kill', action='store_true', help='kill current processes')
+   (options, args) = parser.parse_args()
 
-   try:
-      wifiScanner = WifiScanner()
-      print("[+] Starting gps module")
-      gps = GpsModule()
-      gps.start()
-
-      wifiScanner = WifiScanner(dev_name='wlan1', gps=gps)
-      wifiScanner.start_sniffing()
-      while True:
-         time.sleep(refresh_time)
-         networks = wifiScanner.networks
-         if log_shell:
-            sp.call('clear',shell=True)
-            print("\n\n\n")
-            print(networks)
-         if log_file:
-            if path.exists(csv_file):
-               prev = pd.read_csv(csv_file)            
-               prev = pd.DataFrame(columns=["BSSID", "SSID", "dBm_Signal", "Channel", "Crypto", "Lat/Lng"])
-               prev.set_index("BSSID", inplace=True)
-               networks = pd.concat([prev,networks])
-             
-            
-#            networks.drop_duplicates()
-            networks.to_csv(csv_file, index=True)
-
+   if options.kill == True:
+      ps = subprocess.run(["ps", "aux"], stdout=subprocess.PIPE)
+      active = [p.decode("utf-8") for p in ps.stdout.splitlines() if re.search("scanner.py .* SUB", p.decode("utf-8"))]
       
-   except:
-      gps.stop()
-      gps.join()
-      wifiScanner.stop_sniffing()
-      raise
+      for a in active:
+         subprocess.run(["kill", "-9", re.split("\s+", a)[1]])
+
+   elif options.detach != True or sys.argv[-1] == 'SUB':
+      scanner = Scanner(csv_file=options.outfile, refresh_time=options.refresh_time) 
+      scanner.start()
+   else:
+      cmd = [sys.executable]
+      cmd += sys.argv
+      cmd.append("SUB")
+      p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL)
+      exit()
+
+
+ 
+
+
