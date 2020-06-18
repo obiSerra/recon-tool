@@ -47,6 +47,7 @@ class WifiScanner(Thread):
     def run(self):
         while self.t and self.t.running:
             os.system(f"iwconfig {self.dev_mon} channel {self.ch}")
+            print("HOOPINNG", self.ch)
             self.ch = self.ch % 14 + 1
             time.sleep(0.5)
 
