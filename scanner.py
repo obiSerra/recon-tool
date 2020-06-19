@@ -13,13 +13,15 @@ from wifi_scanner_module import WifiScanner
 
 
 class Scanner(Thread):
-   def __init__(self, csv_file=None, refresh_time=5):
+   def __init__(self, csv_file=None, refresh_time=5, detached=False):
       Thread.__init__(self)
       self.wifiScanner = WifiScanner()
       print("[+] Starting gps module")
       self.gps = GpsModule()
       self.csv_file=csv_file
       self.refresh_time=refresh_time
+      self.detached=detached
+      print(self.detached)
 
    def run(self):
 
@@ -60,7 +62,7 @@ if __name__ == '__main__':
    parser = optparse.OptionParser('usage%prog -o <out file>')
    parser.add_option('-o', '--output', dest='outfile', type='string', help='The output file')
    parser.add_option('-r', dest='refresh_time', type='int', default=5, help='Time between refresh (default=5)')
-   parser.add_option('-d', '--detach', dest='detach', action='store_true', help='Detach the process')
+   parser.add_option('-d', '--detach', dest='detach', default=False, action='store_true', help='Detach the process')
    parser.add_option('-k', '--kill', dest='kill', action='store_true', help='kill active scanning')
    (options, args) = parser.parse_args()
 
@@ -72,7 +74,7 @@ if __name__ == '__main__':
          subprocess.run(["kill", "-9", re.split("\s+", a)[1]])
 
    elif options.detach != True or sys.argv[-1] == 'SUB':
-      scanner = Scanner(csv_file=options.outfile, refresh_time=options.refresh_time) 
+      scanner = Scanner(csv_file=options.outfile, refresh_time=options.refresh_time, detached=options.detach) 
       scanner.start()
    else:
       cmd = [sys.executable]

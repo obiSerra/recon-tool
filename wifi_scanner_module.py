@@ -42,12 +42,12 @@ class WifiScanner(Thread):
                 position = "{},{}".format(self.gps.current_val['lat'], self.gps.current_val['lng'])
             else:
                 position = '-'
+                print('[!] NO GPS')
             self.networks.loc[bssid] = (ssid, dbm_signal, channel, crypto, position, time.time())
 
     def run(self):
         while self.t and self.t.running:
             os.system(f"iwconfig {self.dev_mon} channel {self.ch}")
-            print("HOOPINNG", self.ch)
             self.ch = self.ch % 14 + 1
             time.sleep(0.5)
 
